@@ -14,11 +14,13 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///pla
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
-db.init_app(app)
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
-migrate = Migrate(app, db)
+with app.app_context():
+    db.init_app(app)
+    migrate = Migrate(app, db)
+    if not os.path.exists('instance'):
+        os.makedirs('instance', exist_ok=True)
+    if not os.path.exists('instance/planner.db'):
+        db.create_all()
 
 @login_manager.user_loader
 def load_user(user_id):
