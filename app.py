@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_migrate import Migrate
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
 from models import db, User, Task, CalendarEvent
 from dotenv import load_dotenv
@@ -10,7 +10,14 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-please-change')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///planner.db')
+
+# Use correct database path based on environment
+if os.getenv("VERCEL"):
+    db_path = os.path.join("/tmp", "planner.db")  # Vercel read-only FS workaround
+else:
+    db_path = os.path.join(os.getcwd(), "planner.db")
+
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', f"sqlite:///{db_path}")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
@@ -63,6 +70,12 @@ def login():
         flash('Invalid username or password')
     return render_template("login.html")
 
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('home'))
+
 @app.route("/register", methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -109,8 +122,6 @@ def calendar_page():
 @app.route("/calendar/events", methods=['GET'])
 @login_required
 def get_events():
-    start = request.args.get('start')
-    end = request.args.get('end')
     events = CalendarEvent.query.filter_by(user_id=current_user.id).all()
     return jsonify([{
         'id': event.id,
@@ -124,14 +135,12 @@ def get_events():
 @login_required
 def add_event():
     data = request.get_json()
-
-    # Check for required keys in the incoming data
     if 'start' not in data or 'end' not in data:
         return jsonify({'error': 'Missing start or end time'}), 400
 
     try:
         new_event = CalendarEvent(
-            title=data.get('title', 'Untitled Event'),  # Default title if not provided
+            title=data.get('title', 'Untitled Event'),
             start_time=datetime.fromisoformat(data['start']),
             end_time=datetime.fromisoformat(data['end']),
             all_day=data.get('allDay', False),
@@ -149,155 +158,37 @@ def add_event():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
-@app.route("/api/tasks", methods=['GET'])
-@login_required
-def get_tasks():
-    tasks = Task.query.filter_by(user_id=current_user.id).all()
-    return jsonify([{
-        'id': task.id,
-        'title': task.title,
-        'description': task.description,
-        'due_date': task.due_date.isoformat() if task.due_date else None,
-        'completed': task.completed,
-        'priority': task.priority,
-        'category': task.category
-    } for task in tasks])
-
-@app.route("/api/tasks/<int:task_id>", methods=['PUT'])
-@login_required
-def update_task(task_id):
-    task = Task.query.get_or_404(task_id)
-    if task.user_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    data = request.get_json()
-    task.title = data.get('title', task.title)
-    task.description = data.get('description', task.description)
-    task.completed = data.get('completed', task.completed)
-    task.priority = data.get('priority', task.priority)
-    task.category = data.get('category', task.category)
-    
-    if data.get('due_date'):
-        task.due_date = datetime.fromisoformat(data['due_date'])
-    
-    db.session.commit()
-    return jsonify({'status': 'success'})
-
-@app.route("/api/tasks/<int:task_id>", methods=['DELETE'])
-@login_required
-def delete_task(task_id):
-    task = Task.query.get_or_404(task_id)
-    
-    # Ensure the task belongs to the current user
-    if task.user_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    db.session.delete(task)
-    db.session.commit()
-    return jsonify({'status': 'success', 'message': 'Task deleted successfully'}), 204
-
-@app.route("/logout")
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for('home'))
-
-@app.route("/api/tasks/<int:task_id>", methods=['GET'])
-@login_required
-def get_task(task_id):
-    # Fetch the task from the database
-    task = Task.query.get_or_404(task_id)
-    
-    # Ensure the task belongs to the current user
-    if task.user_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    # Return the task details as JSON
-    return jsonify({
-        'id': task.id,
-        'title': task.title,
-        'description': task.description,
-        'due_date': task.due_date.isoformat() if task.due_date else None,
-        'priority': task.priority,
-        'category': task.category,
-        'completed': task.completed
-    })
-
-@app.route("/calendar/events/<int:event_id>", methods=['PUT'])
-@login_required
-def update_event(event_id):
-    event = CalendarEvent.query.get_or_404(event_id)
-    
-    if event.user_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    data = request.get_json()
-    
-    # Update event details
-    event.title = data.get('title', event.title)
-    event.start_time = datetime.fromisoformat(data['start'])
-    event.end_time = datetime.fromisoformat(data['end'])
-    event.all_day = data.get('allDay', event.all_day)
-    
-    db.session.commit()
-    return jsonify({'status': 'success', 'event': {
-        'id': event.id,
-        'title': event.title,
-        'start': event.start_time.isoformat(),
-        'end': event.end_time.isoformat(),
-        'allDay': event.all_day
-    }}), 200
-
-@app.route("/calendar/events/<int:event_id>", methods=['DELETE'])
-@login_required
-def delete_event(event_id):
-    event = CalendarEvent.query.get_or_404(event_id)
-    
-    if event.user_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    db.session.delete(event)
-    db.session.commit()
-    return jsonify({'status': 'success', 'message': 'Event deleted successfully'}), 204
-
-# Function to check due tasks
-# Function to check due tasks
-def check_due_tasks():
+# Fix for check_due_tasks function
+def check_due_tasks(user_id):
+    """Check for due tasks of a user."""
     current_time = datetime.now()
-    user_id = current_user.id  # Use current_user.id from Flask-Login
-
-    # Query for tasks that are due and not completed
     due_tasks = Task.query.filter(
         Task.user_id == user_id,
         Task.due_date <= current_time,
         Task.completed == False
     ).all()
-    
     return due_tasks
 
-
-# Route to render notifications page
 @app.route('/notifications')
+@login_required
 def notifications():
-    due_tasks = check_due_tasks()  # Get the list of due tasks
+    due_tasks = check_due_tasks(current_user.id)
     return render_template('notifications.html', due_tasks=due_tasks)
 
-# Route to get notification count
 @app.route('/notification_count')
+@login_required
 def notification_count():
-    due_tasks = check_due_tasks()  # Get the list of due tasks
+    due_tasks = check_due_tasks(current_user.id)
     return jsonify({'count': len(due_tasks)})
 
 @app.route('/notifications_data')
 @login_required
 def notifications_data():
-    due_tasks = check_due_tasks()  # Get the list of due tasks
+    due_tasks = check_due_tasks(current_user.id)
     tasks_data = [{'title': task.title, 'due_time': task.due_date.strftime('%Y-%m-%d %H:%M')} for task in due_tasks]
     return jsonify(tasks_data)
 
-
-if __name__ == "__main__":
+# Remove app.run() to let Vercel handle deployment
+if __name__ != "vercel_app":
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
