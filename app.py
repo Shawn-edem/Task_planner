@@ -10,16 +10,17 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-please-change')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///planner.db')
+
+# Use a more suitable database URI for SQLite in a read-only file system
+sqlite_path = os.path.join(os.getcwd(), 'planner.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', f'sqlite:///{sqlite_path}')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
 with app.app_context():
     db.init_app(app)
     migrate = Migrate(app, db)
-    if not os.path.exists('instance'):
-        os.makedirs('instance', exist_ok=True)
-    if not os.path.exists('instance/planner.db'):
+    if not os.path.exists(sqlite_path):
         db.create_all()
 
 @login_manager.user_loader
