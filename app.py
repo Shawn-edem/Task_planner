@@ -188,7 +188,8 @@ def notifications_data():
     tasks_data = [{'title': task.title, 'due_time': task.due_date.strftime('%Y-%m-%d %H:%M')} for task in due_tasks]
     return jsonify(tasks_data)
 
-# Remove app.run() to let Vercel handle deployment
-if __name__ != "vercel_app":
+if __name__ == "__main__":
     with app.app_context():
         db.create_all()
+    port = int(os.getenv("PORT", 5000))  # Get port from environment (required for Vercel)
+    app.run(host="0.0.0.0", port=port)  # Run on all interfaces, necessary for cloud hosting
