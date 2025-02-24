@@ -19,37 +19,28 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 migrate = Migrate(app, db)
 
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
 @app.route("/")
 def home():
-    """Serve the homepage."""
     if current_user.is_authenticated:
         tasks = Task.query.filter_by(user_id=current_user.id).all()
         today = datetime.now().date()
-        today_tasks = Task.query.filter_by(user_id=current_user.id)\
-            .filter(db.func.date(Task.due_date) == today)\
-            .order_by(Task.due_date)\
-            .all()
-        
-        upcoming_events = CalendarEvent.query.filter_by(user_id=current_user.id)\
-            .filter(CalendarEvent.start_time >= datetime.now())\
-            .order_by(CalendarEvent.start_time)\
-            .all()
-        
-        # Get task categories with counts
+        today_tasks = Task.query.filter_by(user_id=current_user.id).filter(db.func.date(Task.due_date) == today).order_by(Task.due_date).all()
+        upcoming_events = CalendarEvent.query.filter_by(user_id=current_user.id).filter(CalendarEvent.start_time >= datetime.now()).order_by(CalendarEvent.start_time).all()
+
         categories = {}
         for task in tasks:
             category = task.category or 'Uncategorized'
             categories[category] = categories.get(category, 0) + 1
-            
-        return render_template("home.html", 
-                             tasks=tasks,
-                             today_tasks=today_tasks,
-                             upcoming_events=upcoming_events,
-                             categories=categories)
+
+        return render_template("home.html", tasks=tasks, today_tasks=today_tasks, upcoming_events=upcoming_events, categories=categories)
     return render_template("home.html")
 
 @app.route("/login", methods=['GET', 'POST'])
@@ -79,7 +70,6 @@ def register():
 @app.route("/tasks")
 @login_required
 def tasks_page():
-    """Serve the tasks page."""
     tasks = Task.query.filter_by(user_id=current_user.id).order_by(Task.due_date).all()
     return render_template("tasks.html", tasks=tasks)
 
@@ -101,7 +91,6 @@ def add_task():
 @app.route("/calendar")
 @login_required
 def calendar_page():
-    """Serve the calendar page."""
     events = CalendarEvent.query.filter_by(user_id=current_user.id).all()
     return render_template("calendar.html", events=events)
 
@@ -124,13 +113,12 @@ def get_events():
 def add_event():
     data = request.get_json()
 
-    # Check for required keys in the incoming data
     if 'start' not in data or 'end' not in data:
         return jsonify({'error': 'Missing start or end time'}), 400
 
     try:
         new_event = CalendarEvent(
-            title=data.get('title', 'Untitled Event'),  # Default title if not provided
+            title=data.get('title', 'Untitled Event'),
             start_time=datetime.fromisoformat(data['start']),
             end_time=datetime.fromisoformat(data['end']),
             all_day=data.get('allDay', False),
@@ -147,7 +135,6 @@ def add_event():
         }}), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 
 @app.route("/api/tasks", methods=['GET'])
 @login_required
@@ -188,7 +175,6 @@ def update_task(task_id):
 def delete_task(task_id):
     task = Task.query.get_or_404(task_id)
     
-    # Ensure the task belongs to the current user
     if task.user_id != current_user.id:
         return jsonify({'error': 'Unauthorized'}), 403
     
@@ -205,14 +191,11 @@ def logout():
 @app.route("/api/tasks/<int:task_id>", methods=['GET'])
 @login_required
 def get_task(task_id):
-    # Fetch the task from the database
     task = Task.query.get_or_404(task_id)
     
-    # Ensure the task belongs to the current user
     if task.user_id != current_user.id:
         return jsonify({'error': 'Unauthorized'}), 403
     
-    # Return the task details as JSON
     return jsonify({
         'id': task.id,
         'title': task.title,
@@ -232,8 +215,6 @@ def update_event(event_id):
         return jsonify({'error': 'Unauthorized'}), 403
     
     data = request.get_json()
-    
-    # Update event details
     event.title = data.get('title', event.title)
     event.start_time = datetime.fromisoformat(data['start'])
     event.end_time = datetime.fromisoformat(data['end'])
@@ -260,13 +241,10 @@ def delete_event(event_id):
     db.session.commit()
     return jsonify({'status': 'success', 'message': 'Event deleted successfully'}), 204
 
-# Function to check due tasks
-# Function to check due tasks
 def check_due_tasks():
     current_time = datetime.now()
-    user_id = current_user.id  # Use current_user.id from Flask-Login
+    user_id = current_user.id
 
-    # Query for tasks that are due and not completed
     due_tasks = Task.query.filter(
         Task.user_id == user_id,
         Task.due_date <= current_time,
@@ -274,7 +252,6 @@ def check_due_tasks():
     ).all()
     
     return due_tasks
-
 
 # Route to render notifications page
 @app.route('/notifications')
