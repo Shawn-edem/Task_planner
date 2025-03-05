@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Task Planner{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        {% if current_user.is_authenticated %}
+        <!-- Dashboard for logged-in users -->
+        <div class="row g-4">
+            <!-- Quick Stats -->
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-chart-line text-primary me-2"></i>Quick Stats
+                        </h5>
+                        <div class="mt-4">
+                            <div class="d-flex justify-content-between mb-3">
+                                <span>Total Tasks</span>
+                                <span class="badge bg-primary rounded-pill">{{ tasks|length }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-3">
+                                <span>Pending Tasks</span>
+                                <span class="badge bg-warning rounded-pill">
+                                    {{ tasks|selectattr('completed', 'equalto', false)|list|length }}
+                                </span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Completed Tasks</span>
+                                <span class="badge bg-success rounded-pill">
+                                    {{ tasks|selectattr('completed', 'equalto', true)|list|length }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Today's Tasks -->
+            <div class="col-md-8">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-calendar-day text-primary me-2"></i>Today's Tasks
+                        </h5>
+                        <div class="list-group list-group-flush mt-3">
+                            {% for task in today_tasks %}
+                            <div class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between align-items-center">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" 
+                                               {% if task.completed %}checked{% endif %}
+                                               onchange="updateTaskStatus({{ task.id }}, this.checked)">
+                                        <label class="form-check-label {% if task.completed %}text-decoration-line-through{% endif %}">
+                                            {{ task.title }}
+                                        </label>
+                                    </div>
+                                    <small class="text-muted">{{ task.due_date.strftime('%H:%M') }}</small>
+                                </div>
+                            </div>
+                            {% else %}
+                            <p class="text-muted text-center my-4">No tasks scheduled for today</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upcoming Events -->
+            <div class="col-md-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-calendar-alt text-primary me-2"></i>Upcoming Events
+                        </h5>
+                        <div class="list-group list-group-flush mt-3">
+                            {% for event in upcoming_events[:5] %}
+                            <div class="list-group-item">
+                                <h6 class="mb-1">{{ event.title }}</h6>
+                                <p class="mb-1 small text-muted">
+                                    <i class="far fa-clock me-1"></i>
+                                    {{ event.start_time.strftime('%Y-%m-%d %H:%M') }}
+                                </p>
+                            </div>
+                            {% else %}
+                            <p class="text-muted text-center my-4">No upcoming events</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Task Categories -->
+            <div class="col-md-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-tags text-primary me-2"></i>Task Categories
+                        </h5>
+                        <div class="mt-4">
+                            <ul>
+                                {% for category, count in categories.items() %}
+                                    <li>{{ category }}: {{ count }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% else %}
+        <!-- Welcome page for non-logged-in users -->
+        <div class="text-center py-5">
+            <h1 class="display-4 mb-4">Welcome to Task Planner</h1>
+            <p class="lead mb-4">Your personal assistant for managing tasks and events efficiently.</p>
+            
+            <div class="row g-4 justify-content-center mb-5">
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <i class="fas fa-tasks fa-3x text-primary mb-3"></i>
+                            <h5 class="card-title">Task Management</h5>
+                            <p class="card-text">Organize your tasks with priorities and categories</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <i class="fas fa-calendar-alt fa-3x text-primary mb-3"></i>
+                            <h5 class="card-title">Calendar Integration</h5>
+                            <p class="card-text">Schedule and track your events seamlessly</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <i class="fas fa-chart-line fa-3x text-primary mb-3"></i>
+                            <h5 class="card-title">Progress Tracking</h5>
+                            <p class="card-text">Monitor your productivity with detailed insights</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-grid gap-2 col-md-6 mx-auto">
+                <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-user-plus me-2"></i>Get Started
+                </a>
+                <a href="{{ url_for('login') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-sign-in-alt me-2"></i>Login
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updateTaskStatus(taskId, completed) {
+    fetch(`/api/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            completed: completed
+        })
+    }).then(() => {
+        // Optionally reload the page or update the UI
+    });
+}
+</script>
+{% endblock %}
